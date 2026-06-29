@@ -48,6 +48,8 @@ Unlike DiffusionDrive, both forward and reverse paths perfectly align at $x_0$. 
 
 $$\min_\theta \mathbb{E} \left[ w(t) \lVert x_\theta(x_t, t, x_T, z) - x_0 \rVert^2 \right]$$
 
+To physically realize the joint distribution factorization $p_d(x,y,z) = p_d(x|y,z)p_d(y|z)p_d(z)$, the model introduces an independent Anchor Classifier $h_\phi(z, \mathcal{Y})$. This classifier predicts the most suitable anchor $y$ given the scene context $z$, effectively determining the starting point ($x_T=y$) for the diffusion bridge prior to the denoising process.
+
 27/06/2026
 
 Mathematical Principles of Standard Diffusion:
@@ -97,6 +99,7 @@ $$\min_\theta \mathbb{E}_{p(t)p_d(x_0)q(x_t|x_0)} \left[ w(t) \lVert x_\theta(x_
 
 The network implicitly learns to approximate the score function as $\nabla_{x_t}\log q(x_t) \approx \frac{\alpha_t x_\theta(x_t, t) - x_t}{\sigma_t^2}$, effectively solving the ODE and completing the generation process.
 
+
 28/06/2026
 
 Mathematical Modifications for BridgeDrive:
@@ -115,7 +118,7 @@ To build the "Diffusion Bridge" and fix the asymmetry issue of previous methods,
 
 4. The Symmetrical Objective Function
 
-Instead of terminating the forward process at pure Gaussian noise, BridgeDrive firmly anchors the endpoint to the coarse expert trajectory $y$:
+Instead of terminating the forward process at pure Gaussian noise, BridgeDrive anchors the endpoint to the coarse expert trajectory $y$:
 
   $$x_T := y$$
 
@@ -130,3 +133,23 @@ Since the modified SDE remains linear, the intermediate state $x_t$ maintains a 
 With the bridge established, the neural network denoiser $x_\theta$ learns to predict the pristine trajectory $x_0$, conditioned on both the anchor $x_T$ and the environment context $z$. This formulation perfectly aligns the forward and reverse processes:
 
   $$\min_\theta \mathbb{E} \left[ w(t) \lVert x_\theta(x_t, t, x_T, z) - x_0 \rVert^2 \right]$$
+
+During the inference (planning) stage, the model translates the chosen anchor $x_T$ into a refined trajectory $x_0$ using a specialized Bridge Probability Flow ODE (PF-ODE):
+
+  $$\frac{dx_t}{dt}=f(t)x_t-g(t)^2 \left( \frac{\nabla_{x_t}\log q(x_t|x_T,z)}{2}-\nabla_{x_t}\log q(x_T|x_t) \right)$$
+
+The trained denoiser $x_\theta(x_t, t, x_T, z)$ is utilized to approximate the score function. This score guides a numerical ODE solver (e.g., DDIM) to iteratively update the trajectory, efficiently bridging the coarse anchor to the precise final plan. 
+
+29/06/2026
+
+End-to-end autonomous driving: map raw sensory inputs directly to trajectory predictions or control commands.
+
+Deterministic planners: fusing multi modal sensor inputs through transformer-based encoders and decoding them into trajectory outputs via compact MLP heads. These models highlight the importance of effective sensor fusion in improving closed-loop driving performance.
+
+Diffusion-based planners: utilizing to model the multi-modal nature of human driving behaviors, generating diverse and feasible trajectories from random noise through an iterative denoising process.
+
+Patterns collapse: When patterns collapse, different random noise inputs tend to converge to similar trajectories during the denoising process.
+
+————————————————
+
+Out-of distribution failure scenario: despite BridgeDrive's exceptional modeling capabilities, it cannot generalize to out-of-distribution (OOD) scenarios.
